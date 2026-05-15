@@ -21,6 +21,10 @@ DATA_PATH = ROOT / "docs" / "data" / "latest.json"
 KST = timezone(timedelta(hours=9))
 PAGES_URL_DEFAULT = "https://jinhae8971.github.io/kospi-valuation-radar/"
 
+# 한글명 매핑
+sys.path.insert(0, str(Path(__file__).parent))
+from kr_names import get_kr_name, get_short_ticker
+
 
 def load_config() -> Dict[str, str]:
     cfg = {
@@ -123,16 +127,21 @@ def build_message(snapshot: Dict[str, Any], top_n: int = 5) -> str:
                 lines.append("━━━━━━━━━━━━━━━━━━")
                 lines.append("<b>🎯 Multi-Factor Long-Short TOP 5</b>")
                 lines.append("📈 <b>LONG (롱)</b>:")
-                # ticker -> name lookup
-                name_lookup = {s["ticker"]: shorten_name(s.get("name") or s.get("short_name") or "", s["ticker"])
-                               for s in snapshot.get("stocks", [])}
                 for i, p in enumerate(longs, 1):
-                    nm = name_lookup.get(p['ticker'], '')
-                    lines.append(f"  {i}. <b>{p['ticker'][:6]}</b> {nm} ({p['final_score']:+.3f})")
+                    tk = p['ticker']
+                    short = get_short_ticker(tk)
+                    name = get_kr_name(tk)
+                    sec = p.get('sector', '')[:15]
+                    lines.append(f"  {i}. <b>{short} {name}</b>")
+                    lines.append(f"     Score {p['final_score']:+.3f}  ·  <i>{sec}</i>")
                 lines.append("📉 <b>SHORT (숏)</b>:")
                 for i, p in enumerate(shorts, 1):
-                    nm = name_lookup.get(p['ticker'], '')
-                    lines.append(f"  {i}. <b>{p['ticker'][:6]}</b> {nm} ({p['final_score']:+.3f})")
+                    tk = p['ticker']
+                    short = get_short_ticker(tk)
+                    name = get_kr_name(tk)
+                    sec = p.get('sector', '')[:15]
+                    lines.append(f"  {i}. <b>{short} {name}</b>")
+                    lines.append(f"     Score {p['final_score']:+.3f}  ·  <i>{sec}</i>")
         except Exception as e:
             print(f"⚠️ multifactor 로드 실패: {e}")
 
@@ -162,12 +171,12 @@ def build_message(snapshot: Dict[str, Any], top_n: int = 5) -> str:
         lines.append(f"🏷️ <b>{sec}</b>")
         for i, s in enumerate(stocks, 1):
             tk = s.get("ticker", "?")
-            tk_short = tk.replace(".KS", "").replace(".KQ", "")
+            short = get_short_ticker(tk)
+            name = get_kr_name(tk)
             z = s.get("composite_z")
             pe = s.get("pe")
             pb = s.get("pb")
             quality = s.get("quality_z")
-            name = shorten_name(s.get("name") or s.get("short_name") or "", tk)
 
             if quality is not None and quality > 0:
                 q_marker = "✨"
@@ -177,7 +186,7 @@ def build_message(snapshot: Dict[str, Any], top_n: int = 5) -> str:
                 q_marker = "  "
 
             lines.append(
-                f"  {i}. {q_marker}<b>{tk_short}</b> {name}\n"
+                f"  {i}. {q_marker}<b>{short} {name}</b>\n"
                 f"     Z=<b>{format_number(z, '+.2f')}</b> · "
                 f"PE={format_number(pe, '.1f')} · "
                 f"PB={format_number(pb, '.1f')}"

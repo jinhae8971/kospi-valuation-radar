@@ -202,7 +202,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
       <h2 class="text-lg font-semibold">📋 전체 종목 — 정렬 가능 테이블</h2>
       <div class="flex flex-wrap gap-2">
-        <input id="search-input" type="text" placeholder="티커/이름 검색..." class="px-3 py-1.5 text-sm bg-slate-900 border border-slate-700 rounded-md text-slate-200 focus:border-cyan-500 focus:outline-none" />
+        <input id="search-input" type="text" placeholder="종목코드 / 종목명 검색..." class="px-3 py-1.5 text-sm bg-slate-900 border border-slate-700 rounded-md text-slate-200 focus:border-cyan-500 focus:outline-none" />
         <select id="sector-filter" class="px-3 py-1.5 text-sm bg-slate-900 border border-slate-700 rounded-md text-slate-200 focus:border-cyan-500 focus:outline-none">
           <option value="">모든 섹터</option>
         </select>
@@ -218,8 +218,8 @@
       <table class="w-full text-sm">
         <thead>
           <tr>
-            <th data-sort="ticker">티커</th>
-            <th data-sort="name">기업명</th>
+            <th data-sort="ticker_short">종목코드</th>
+            <th data-sort="name_kr">종목명</th>
             <th data-sort="super_sector">섹터</th>
             <th data-sort="composite_z" class="text-right">Z종합 ⬇</th>
             <th data-sort="quality_z" class="text-right">Quality</th>
@@ -372,18 +372,33 @@ function renderLongShortPortfolio(mf) {
   const longs  = mf.portfolio.positions.filter(p => p.side === "LONG");
   const shorts = mf.portfolio.positions.filter(p => p.side === "SHORT");
 
+  // 한글명 lookup (stocks 배열에서)
+  const nameLookup = {};
+  const tkShortLookup = {};
+  if (SNAPSHOT && SNAPSHOT.stocks) {
+    SNAPSHOT.stocks.forEach(s => {
+      nameLookup[s.ticker] = s.name_kr || s.name || s.ticker;
+      tkShortLookup[s.ticker] = s.ticker_short || s.ticker;
+    });
+  }
+
   function renderPositions(list, containerId, color) {
     const c = document.getElementById(containerId);
-    c.innerHTML = list.map((p, i) => `
-      <div class="flex items-center justify-between text-sm py-1.5 px-2 panel-2 hover:border-cyan-500 transition-colors cursor-pointer" onclick="filterTicker('${p.ticker}')">
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-500 w-5">${i+1}</span>
-          <span class="font-bold ${color}">${p.ticker}</span>
-          <span class="text-[11px] text-slate-500 truncate max-w-[160px]" title="${p.sector || ''}">${p.sector || ''}</span>
+    c.innerHTML = list.map((p, i) => {
+      const krName = nameLookup[p.ticker] || p.ticker;
+      const tkShort = tkShortLookup[p.ticker] || p.ticker;
+      return `
+        <div class="flex items-center justify-between text-sm py-1.5 px-2 panel-2 hover:border-cyan-500 transition-colors cursor-pointer" onclick="filterTicker('${p.ticker}')">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-xs text-slate-500 w-5 shrink-0">${i+1}</span>
+            <span class="font-mono text-[11px] text-slate-500 shrink-0">${tkShort}</span>
+            <span class="font-bold ${color} truncate" title="${krName}">${krName}</span>
+            <span class="text-[10px] text-slate-500 truncate hidden sm:inline" title="${p.sector || ''}">${(p.sector || '').slice(0, 12)}</span>
+          </div>
+          <div class="text-xs num-mono ${color} shrink-0 ml-2">${p.final_score > 0 ? '+' : ''}${p.final_score.toFixed(3)}</div>
         </div>
-        <div class="text-xs num-mono ${color}">${p.final_score > 0 ? '+' : ''}${p.final_score.toFixed(3)}</div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   }
 
   renderPositions(longs, "long-positions", "text-emerald-300");
@@ -519,12 +534,12 @@ function drawScatter() {
     x: list.map(s => s.composite_z),
     y: list.map(s => s.quality_z),
     text: list.map(s =>
-      `<b>${s.ticker}</b> · ${s.name || ""}<br>` +
+      `<b>${s.ticker_short || s.ticker}</b> · ${s.name_kr || s.name || ""}<br>` +
       `섹터: ${s.super_sector}<br>` +
       `Z종합: ${fmtZ(s.composite_z)} (낮을수록 저평가)<br>` +
       `Quality: ${fmtZ(s.quality_z)}<br>` +
       `P/E: ${fmt(s.pe)} · P/S: ${fmt(s.ps)} · P/B: ${fmt(s.pb)}<br>` +
-      `시총: $${fmtMktCap(s.market_cap)}`
+      `시총: ${fmtMktCap(s.market_cap)}`
     ),
     hovertemplate: "%{text}<extra></extra>",
     customdata: list.map(s => s.ticker),
@@ -672,14 +687,16 @@ function drawTopCards() {
       : (s.quality_z !== null && s.quality_z < -1)
       ? '<span class="text-yellow-400">⚠️</span>'
       : "";
+    const tkShort = s.ticker_short || s.ticker;
+    const displayName = s.name_kr || s.name || "";
     return `
       <div class="panel-2 p-3 hover:border-cyan-500 transition-colors cursor-pointer" onclick="filterTicker('${s.ticker}')">
         <div class="flex items-baseline justify-between mb-1">
-          <div class="text-lg font-bold">${s.ticker} ${qualityMark}</div>
-          <div class="text-xs ${zClass(s.composite_z)} px-2 py-0.5 rounded">${fmtZ(s.composite_z)}</div>
+          <div class="text-base font-bold truncate" title="${displayName}">${displayName} ${qualityMark}</div>
+          <div class="text-xs ${zClass(s.composite_z)} px-2 py-0.5 rounded ml-1 shrink-0">${fmtZ(s.composite_z)}</div>
         </div>
-        <div class="text-xs text-slate-400 truncate mb-2" title="${s.name || ''}">${s.name || ''}</div>
-        <div class="text-[10px] text-slate-500 mb-2">${s.super_sector || ''}</div>
+        <div class="text-[11px] text-slate-500 mb-2">${tkShort}</div>
+        <div class="text-[10px] text-slate-500 mb-2 truncate" title="${s.super_sector || ''}">${s.super_sector || ''}</div>
         <div class="grid grid-cols-2 gap-1 text-[11px] num-mono">
           <div class="text-slate-500">P/E</div><div class="text-right">${fmt(s.pe)}</div>
           <div class="text-slate-500">P/S</div><div class="text-right">${fmt(s.ps)}</div>
@@ -709,7 +726,9 @@ function drawTable() {
     const q = SEARCH_TEXT.toLowerCase();
     rows = rows.filter(s =>
       (s.ticker || "").toLowerCase().includes(q) ||
-      (s.name || "").toLowerCase().includes(q)
+      (s.ticker_short || "").toLowerCase().includes(q) ||
+      (s.name || "").toLowerCase().includes(q) ||
+      (s.name_kr || "").toLowerCase().includes(q)
     );
   }
   if (FILTER_SECTOR) rows = rows.filter(s => s.super_sector === FILTER_SECTOR);
@@ -732,8 +751,8 @@ function drawTable() {
   const tbody = document.getElementById("stocks-tbody");
   tbody.innerHTML = rows.map(s => `
     <tr>
-      <td class="font-bold">${s.ticker || ""}</td>
-      <td class="text-slate-300 max-w-[200px] truncate" title="${s.name || ''}">${s.name || ""}</td>
+      <td class="font-mono text-xs text-slate-400">${s.ticker_short || s.ticker || ""}</td>
+      <td class="text-slate-200 font-medium max-w-[180px] truncate" title="${s.name_kr || s.name || ''}">${s.name_kr || s.name || ""}</td>
       <td class="text-xs text-slate-400">${s.super_sector || ""}</td>
       <td class="text-right num-mono ${zClass(s.composite_z)}">${fmtZ(s.composite_z)}</td>
       <td class="text-right num-mono">${fmtZ(s.quality_z)}</td>

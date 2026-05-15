@@ -32,6 +32,7 @@ from universe import (
     UNIVERSE, get_all_tickers, get_ticker_to_sector,
     get_ticker_to_super_sector, get_super_sector,
 )
+from kr_names import get_kr_name, get_short_ticker
 
 
 # ---------------------------------------------------------------------------
@@ -137,9 +138,18 @@ def fetch_ticker_data(ticker: str, retries: int = 2) -> Dict[str, Any]:
                 if attempt < retries:
                     time.sleep(0.5)
                     continue
-                return {"ticker": ticker, "error": "no_info"}
+                return {
+                    "ticker": ticker,
+                    "name_kr": get_kr_name(ticker),
+                    "ticker_short": get_short_ticker(ticker),
+                    "error": "no_info",
+                }
 
             row: Dict[str, Any] = {"ticker": ticker}
+            # 한글명 + 짧은 티커 추가
+            row["name_kr"] = get_kr_name(ticker)
+            row["ticker_short"] = get_short_ticker(ticker)
+
             for key, yf_field in INFO_FIELDS.items():
                 row[key] = info.get(yf_field)
 
